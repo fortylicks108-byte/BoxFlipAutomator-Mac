@@ -1,0 +1,9 @@
+Box Flip Automator v1.9.1 Mac Port
+
+- Preserves the Windows v1.9 automation, modes, odds weighting, MLB 5yr calibration, and UI logic.
+- FIX: macOS Accessibility permission checks now use ApplicationServices instead of Quartz.
+- Added pyobjc-framework-ApplicationServices 12.2.1 to runtime dependencies.
+- Added ApplicationServices to PyInstaller hidden imports.
+- Added native-framework smoke tests in GitHub Actions so broken Mac dependencies fail during the build rather than on your friend's machine.
+- Retains Quartz mouse/keyboard automation, Screen Recording preflight, Apple Vision OCR, Retina-safe Pillow 12.3 capture, Esc/top-left failsafe, and DMG packaging.
+- Builds Apple Silicon and Intel DMGs on the current GitHub macOS 26 runner labels.

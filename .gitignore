@@ -1,0 +1,10 @@
+__pycache__/
+.pytest_cache/
+.venv/
+build/
+dist/
+dist-dmg/
+dmg-stage/
+boxflip.iconset/
+boxflip.icns
+.DS_Store
