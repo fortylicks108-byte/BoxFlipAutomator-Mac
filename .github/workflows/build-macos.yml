@@ -1,1 +1,60 @@
+name: Build Box Flip Automator for macOS Tahoe
 
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-26
+            label: AppleSilicon
+          - runner: macos-26-intel
+            label: Intel
+
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-build.txt
+
+      - name: Verify native macOS frameworks
+        run: |
+          python - <<'PY'
+          import Quartz, Vision, ApplicationServices
+          assert hasattr(Quartz, "CGPreflightScreenCaptureAccess")
+          assert hasattr(Quartz, "CGRequestScreenCaptureAccess")
+          assert hasattr(ApplicationServices, "AXIsProcessTrusted")
+          assert hasattr(ApplicationServices, "AXIsProcessTrustedWithOptions")
+          assert hasattr(Vision, "VNRecognizeTextRequest")
+          print("Native macOS framework smoke test passed")
+          PY
+
+      - name: Run core tests
+        run: python -m pytest tests
+
+      - name: Build app and DMG
+        run: python build_mac.py
+
+      - name: Rename DMG
+        run: |
+          FILE=$(find dist-dmg -name '*.dmg' -maxdepth 1 | head -1)
+          cp "$FILE" "BoxFlipAutomator-macOS-Tahoe-${{ matrix.label }}.dmg"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BoxFlipAutomator-macOS-Tahoe-${{ matrix.label }}
+          path: BoxFlipAutomator-macOS-Tahoe-${{ matrix.label }}.dmg
+          if-no-files-found: error
