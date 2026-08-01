@@ -1,70 +1,19 @@
-BOX FLIP AUTOMATOR v1.9.2 — macOS TAHOE BUILD
+Box Flip Automator v1.9.4 Mac
 
-WHAT THIS IS
-A macOS compatibility port of Box Flip Automator Windows v1.9. The game/odds/region logic remains matched to the Windows v1.9 codebase; v1.9.2 hardens the Mac-specific layer while keeping the Windows v1.9 game/odds/region logic intact. It keeps the existing:
-- Normal mode
-- Across the Line mode (Left -> Middle -> Right)
-- Random Lines mode (random column per row, top -> bottom)
-- Wager entry + green confirmation + blue Done detection
-- Screen-region drag/highlight setup
-- Odds weighting
-- MLB 5yr odds calibration
-- Emergency stop with Esc or the top-left mouse corner
+This build intentionally returns to the original v1.9.0 Mac permission behavior because that version was confirmed to open and reach the Set selector on the target Mac. The only functional Mac-layer change is Retina/HiDPI screenshot scaling so Set should show the whole display instead of a 2x zoomed crop.
 
-MAC-SPECIFIC IMPLEMENTATION
-- Retina-safe screen capture uses Pillow 12.3 scale_down mode so screenshot coordinates match click coordinates.
-- Native Quartz/CoreGraphics events move/click the mouse and type wager values.
-- Apple Vision OCR reads odds; Tesseract is NOT required.
-- macOS Screen Recording permission is checked through Quartz/CoreGraphics.
-- macOS Accessibility permission is checked through ApplicationServices (the correct native framework).
+BUILD ON GITHUB
+1. Upload all files/folders in this package to the existing repository, replacing older versions.
+2. Commit to main.
+3. Open Actions and wait for Build Box Flip Automator for macOS Tahoe.
+4. Download the AppleSilicon artifact for M-series Macs, or Intel for Intel Macs.
 
-WHAT YOUR FRIEND INSTALLS
-Nothing extra. Send the finished .dmg from GitHub Actions.
-1. Open the DMG.
-2. Drag Box Flip Automator into Applications.
-3. Open the app.
-4. Click "Mac permissions" and allow:
-   - Screen & System Audio Recording
-   - Accessibility
-5. If macOS asks, quit/reopen the app once.
+INSTALL
+1. Open the downloaded ZIP and DMG.
+2. Drag Box Flip Automator to Applications, replacing the older copy.
+3. Launch from Applications.
+4. Keep Screen & System Audio Recording and Accessibility enabled for Box Flip Automator.
+5. Command-Q and reopen if macOS requests it.
 
-FIRST TEST BUILD / GATEKEEPER
-The included workflow produces an ad-hoc signed test build. On the first launch,
-macOS may block it because it is not notarized with an Apple Developer ID.
-If that happens, attempt to open it once, then use System Settings -> Privacy & Security -> Open Anyway.
-This is still much simpler for the recipient than installing Python or developer tools.
-
-APPLE SILICON VS INTEL
-GitHub Actions builds BOTH:
-- BoxFlipAutomator-macOS-Tahoe-AppleSilicon.dmg  (M1/M2/M3/M4/M5 etc.)
-- BoxFlipAutomator-macOS-Tahoe-Intel.dmg         (Intel MacBook Pro)
-Check Apple menu -> About This Mac if you are unsure which one to send.
-
-HOW TO BUILD FROM WINDOWS USING GITHUB
-1. Create a GitHub repository (private is fine).
-2. Upload the CONTENTS of this folder, including the hidden .github folder.
-3. Open the repository's Actions tab.
-4. Choose "Build Box Flip Automator for macOS Tahoe".
-5. Click "Run workflow".
-6. When both jobs finish, download the two DMG artifacts.
-7. Send your friend the DMG matching his Mac.
-
-OPTIONAL PROFESSIONAL DISTRIBUTION
-For a warning-free download experience, add an Apple Developer ID Application
-certificate and notarization credentials to the GitHub workflow later. The app
-itself does not require the Mac App Store.
-
-IMPORTANT TEST NOTE
-This package was source-tested in the current environment, but actual Quartz,
-Vision, TCC permissions, and click coordinates must be validated on a real Mac.
-The first Mac test should use a harmless page and a tiny number of rounds.
-
-V1.9.1 MAC RELIABILITY FIX
-The prior Mac source was very close to the Windows v1.9 code, but its Accessibility permission check was routed through Quartz. Accessibility trust APIs belong to ApplicationServices. v1.9.1 fixes that dependency/import and adds a GitHub Actions smoke test so a Mac build fails early if Screen Recording, Accessibility, or Vision OCR framework symbols are unavailable.
-
-
-V1.9.2 RETINA / DISPLAY-SCALING FIX
-Some Macs could show the Set-region screenshot at Retina pixel size while Tk and Quartz mouse coordinates were using logical points. The result looked dramatically zoomed and made the screen impossible to select. v1.9.2 reads the main display's logical dimensions from AppKit (NSScreen) and normalizes both full-screen and region captures into the same 1x coordinate space before showing or analyzing them. This also keeps stored selection coordinates aligned with mouse clicks on Retina/scaled displays.
-
-v1.9.3 permission note
-If macOS shows Box Flip Automator enabled under Screen & System Audio Recording but the preflight API still reports false, v1.9.3 tests an actual capture before refusing Set. This is specifically to avoid false permission loops seen with private/ad-hoc-signed test builds on newer macOS versions.
+TEST
+Use Set on Flip Boxes first. The selector should display the full screen at normal scale. Test one round before repeating.

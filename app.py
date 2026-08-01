@@ -20,12 +20,11 @@ from typing import Callable
 from PIL import Image, ImageChops, ImageGrab, ImageStat, ImageTk
 
 APP_NAME = "Box Flip Automator"
-APP_VERSION = "1.9.3 Mac"
+APP_VERSION = "1.9.4 Mac"
 CONFIG_PATH = Path.home() / ".box_flip_automator_v19_mac.json"
 LEGACY_CONFIG_PATH = Path.home() / ".box_flip_automator_v19.json"
 IS_WINDOWS = platform.system() == "Windows"
 IS_MAC = platform.system() == "Darwin"
-MAC_SCREEN_CAPTURE_CONFIRMED = False
 
 if IS_WINDOWS:
     from ctypes import wintypes
@@ -43,19 +42,16 @@ if IS_MAC:
     try:
         import Quartz
         import Vision
-        import ApplicationServices
         from Foundation import NSURL
         from AppKit import NSScreen
     except Exception:
         Quartz = None
         Vision = None
-        ApplicationServices = None
         NSURL = None
         NSScreen = None
 else:
     Quartz = None
     Vision = None
-    ApplicationServices = None
     NSURL = None
     NSScreen = None
 
@@ -117,22 +113,12 @@ REGION_COLORS = {
 
 
 def mac_screen_capture_allowed() -> bool:
-    """Return the best-known Screen Recording state for this process.
-
-    macOS can report CGPreflightScreenCaptureAccess() as false for some
-    ad-hoc-signed/test builds even after the user enabled the app in System
-    Settings.  Once an actual capture succeeds, trust that real-world result
-    for the remainder of the process instead of trapping the user in a false
-    permission loop.
-    """
     if not IS_MAC or Quartz is None:
-        return True
-    if MAC_SCREEN_CAPTURE_CONFIRMED:
         return True
     try:
         return bool(Quartz.CGPreflightScreenCaptureAccess())
     except Exception:
-        return False
+        return True
 
 
 def request_mac_screen_capture() -> bool:
@@ -148,26 +134,25 @@ def request_mac_screen_capture() -> bool:
 
 
 def mac_accessibility_allowed(prompt: bool = False) -> bool:
-    """Check/request macOS Accessibility permission via ApplicationServices."""
-    if not IS_MAC:
+    if not IS_MAC or Quartz is None:
         return True
-    if ApplicationServices is None:
-        return False
     try:
-        if prompt:
-            option = ApplicationServices.kAXTrustedCheckOptionPrompt
-            return bool(ApplicationServices.AXIsProcessTrustedWithOptions({option: True}))
-        return bool(ApplicationServices.AXIsProcessTrusted())
+        if prompt and hasattr(Quartz, "AXIsProcessTrustedWithOptions"):
+            option = getattr(Quartz, "kAXTrustedCheckOptionPrompt", "AXTrustedCheckOptionPrompt")
+            return bool(Quartz.AXIsProcessTrustedWithOptions({option: True}))
+        if hasattr(Quartz, "AXIsProcessTrusted"):
+            return bool(Quartz.AXIsProcessTrusted())
     except Exception:
         return False
+    return False
 
 
 def _mac_logical_screen_size() -> tuple[int, int]:
-    """Return the main display size in macOS logical points, not Retina pixels.
+    """Return the main Mac display size in logical points (1x UI coordinates).
 
-    Tk and Quartz mouse events use logical screen coordinates.  ImageGrab can
-    still return a 2x Retina bitmap on some Mac/Pillow/display combinations,
-    so the selection overlay must be normalized to this logical size.
+    This intentionally changes only screenshot geometry. Permission checks and
+    prompting remain exactly as in the original v1.9.0 Mac port, which is the
+    known-good behavior for this build.
     """
     if IS_MAC and NSScreen is not None:
         try:
@@ -175,19 +160,15 @@ def _mac_logical_screen_size() -> tuple[int, int]:
             return max(1, int(round(frame.size.width))), max(1, int(round(frame.size.height)))
         except Exception:
             pass
-    # Fallback only if AppKit is unavailable.  scale_down=True is correct on
-    # current Pillow, but we still normalize again in capture_virtual_screen.
     image = ImageGrab.grab(scale_down=True) if IS_MAC else ImageGrab.grab()
     return image.width, image.height
 
 
 def _normalize_mac_capture(image: Image.Image, width: int, height: int) -> Image.Image:
-    """Force a Mac screenshot into the same 1x coordinate space as Tk/Quartz."""
+    """Resize Retina captures into the same coordinate space used by Tk/Quartz."""
     width, height = max(1, int(width)), max(1, int(height))
     if image.size == (width, height):
         return image
-    # Retina normally yields an exact 2x image.  LANCZOS also safely handles
-    # non-integer display scaling without changing the user's screen geometry.
     return image.resize((width, height), Image.Resampling.LANCZOS)
 
 
@@ -216,9 +197,6 @@ def capture_virtual_screen(bounds: ScreenBounds | None = None) -> tuple[Image.Im
         )
     elif IS_MAC:
         logical_w, logical_h = _mac_logical_screen_size()
-        # Try Pillow's native downscale first, then enforce the AppKit logical
-        # dimensions.  This fixes the full-screen selector appearing zoomed on
-        # Retina / scaled Mac displays.
         image = ImageGrab.grab(scale_down=True)
         image = _normalize_mac_capture(image, logical_w, logical_h)
         bounds = ScreenBounds(0, 0, logical_w, logical_h)
@@ -228,33 +206,6 @@ def capture_virtual_screen(bounds: ScreenBounds | None = None) -> tuple[Image.Im
     return image.convert("RGB"), bounds
 
 
-def probe_mac_screen_capture() -> bool:
-    """Test the capability we actually need instead of trusting only TCC preflight.
-
-    This is intentionally conservative: a valid full-screen RGB image with
-    nonzero dimensions counts as usable.  On macOS builds where the preflight
-    API is stale but capture is genuinely allowed, this lets Set continue.
-    If capture is denied and Pillow raises, the probe returns False.
-    """
-    global MAC_SCREEN_CAPTURE_CONFIRMED
-    if not IS_MAC:
-        return True
-    try:
-        image, bounds = capture_virtual_screen()
-        usable = (
-            image.mode == "RGB"
-            and image.width >= 100
-            and image.height >= 100
-            and bounds.width >= 100
-            and bounds.height >= 100
-        )
-        if usable:
-            MAC_SCREEN_CAPTURE_CONFIRMED = True
-        return usable
-    except Exception:
-        return False
-
-
 def crop_global(image: Image.Image, bounds: ScreenBounds, rect: tuple[int, int, int, int]) -> Image.Image:
     x1, y1, x2, y2 = rect
     return image.crop((x1 - bounds.left, y1 - bounds.top, x2 - bounds.left, y2 - bounds.top))
@@ -262,9 +213,6 @@ def crop_global(image: Image.Image, bounds: ScreenBounds, rect: tuple[int, int, 
 
 def capture_region(rect: tuple[int, int, int, int]) -> Image.Image:
     if IS_MAC:
-        # Region coordinates come from Tk/Quartz logical points.  Some Retina
-        # configurations still return a higher-density bitmap for bbox grabs,
-        # so force the result back to the rectangle's logical dimensions.
         x1, y1, x2, y2 = rect
         expected_w = max(1, x2 - x1)
         expected_h = max(1, y2 - y1)
@@ -1298,7 +1246,7 @@ class BoxFlipApp(tk.Tk):
             font=("Segoe UI Semibold", 15)
         ).pack(anchor="w")
         tk.Label(
-            title_col, text="AUTOMATOR  ·  v1.9.3", bg=Theme.BG, fg=Theme.GOLD,
+            title_col, text="AUTOMATOR  ·  v1.9.4", bg=Theme.BG, fg=Theme.GOLD,
             font=("Segoe UI Semibold", 7)
         ).pack(anchor="w", pady=(0, 1))
         self.ready_pill = tk.Label(
@@ -1474,10 +1422,10 @@ class BoxFlipApp(tk.Tk):
     def _request_mac_permissions(self) -> None:
         if not IS_MAC:
             return
-        if Quartz is None or ApplicationServices is None:
+        if Quartz is None:
             messagebox.showerror(
                 "Mac framework missing",
-                "This build is missing a required bundled macOS framework. Rebuild the Mac package from the supplied GitHub workflow.",
+                "This build is missing its bundled Quartz framework. Rebuild the Mac package from the supplied GitHub workflow.",
                 parent=self,
             )
             return
@@ -1500,10 +1448,7 @@ class BoxFlipApp(tk.Tk):
         missing: list[str] = []
         if screen and not mac_screen_capture_allowed():
             request_mac_screen_capture()
-            # macOS 26 can leave CGPreflightScreenCaptureAccess() false for
-            # ad-hoc/private builds even when the user has enabled the app.
-            # Try the real operation before blocking Set.
-            if not mac_screen_capture_allowed() and not probe_mac_screen_capture():
+            if not mac_screen_capture_allowed():
                 missing.append("Screen & System Audio Recording")
         if accessibility and not mac_accessibility_allowed(False):
             mac_accessibility_allowed(prompt=True)
@@ -1515,8 +1460,7 @@ class BoxFlipApp(tk.Tk):
                 "Mac permission required",
                 "Enable Box Flip Automator under System Settings → Privacy & Security for: "
                 + ", ".join(missing)
-                + ". If it is already enabled, quit the app with Command-Q and reopen it from Applications. "
-                "This build also tests real capture so a stale macOS status check will not block Set.",
+                + ". Then quit and reopen the app if macOS asks you to.",
                 parent=self,
             )
             return False
@@ -1910,8 +1854,8 @@ class BoxFlipApp(tk.Tk):
         if not (IS_WINDOWS or IS_MAC):
             messagebox.showerror("Unsupported platform", "Mouse and keyboard automation requires Windows or macOS.", parent=self)
             return
-        if IS_MAC and (Quartz is None or ApplicationServices is None):
-            messagebox.showerror("Mac framework missing", "Required macOS automation frameworks are missing from this build.", parent=self)
+        if IS_MAC and Quartz is None:
+            messagebox.showerror("Mac framework missing", "Quartz automation support is missing from this build.", parent=self)
             return
         if not self._ensure_mac_permissions(screen=True, accessibility=True):
             return

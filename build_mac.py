@@ -45,7 +45,7 @@ def main():
         '--osx-bundle-identifier', 'com.fortylix.boxflipautomator',
         '--icon', ROOT/'boxflip.icns',
         '--add-data', f'{ROOT / "boxflip.png"}:.',
-        '--hidden-import', 'Quartz', '--hidden-import', 'Vision', '--hidden-import', 'ApplicationServices', '--hidden-import', 'Foundation', '--hidden-import', 'AppKit',
+        '--hidden-import', 'Quartz', '--hidden-import', 'Vision', '--hidden-import', 'Foundation', '--hidden-import', 'AppKit',
         ROOT/'app.py')
     app = DIST / f'{APP_NAME}.app'
     run('codesign','--force','--deep','--sign','-',app)

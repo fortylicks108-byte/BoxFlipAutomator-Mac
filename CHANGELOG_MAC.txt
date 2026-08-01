@@ -1,24 +1,8 @@
-Box Flip Automator v1.9.2 Mac Port
+Box Flip Automator v1.9.4 Mac
 
-- Fixes the Set/region selector appearing massively zoomed on Retina or scaled Mac displays.
-- Uses AppKit NSScreen logical point dimensions for the selection overlay.
-- Normalizes full-screen screenshots to Tk/Quartz 1x coordinates.
-- Normalizes bbox/region screenshots to the saved rectangle dimensions so detection and clicking remain aligned.
-- Adds NSScreen to the GitHub Actions native-framework smoke test.
-- Preserves the v1.9 Windows game logic, odds logic, MLB 5yr model, Across the Line, Random Lines, wager handling, and Done flow.
-
-Box Flip Automator v1.9.1 Mac Port
-
-- Preserves the Windows v1.9 automation, modes, odds weighting, MLB 5yr calibration, and UI logic.
-- FIX: macOS Accessibility permission checks now use ApplicationServices instead of Quartz.
-- Added pyobjc-framework-ApplicationServices 12.2.1 to runtime dependencies.
-- Added ApplicationServices to PyInstaller hidden imports.
-- Added native-framework smoke tests in GitHub Actions so broken Mac dependencies fail during the build rather than on your friend's machine.
-- Retains Quartz mouse/keyboard automation, Screen Recording preflight, Apple Vision OCR, Retina-safe Pillow 12.3 capture, Esc/top-left failsafe, and DMG packaging.
-- Builds Apple Silicon and Intel DMGs on the current GitHub macOS 26 runner labels.
-
-v1.9.3 Mac
-- Fixes a macOS 26/Tahoe permission-loop edge case where CGPreflightScreenCaptureAccess can stay false for private/ad-hoc-signed builds even after Screen Recording is enabled.
-- Set now attempts the real screen-capture operation before blocking the user on the status API.
-- Once a real capture succeeds, that successful result is trusted for the rest of the app session.
-- Updates the visible Mac version label to v1.9.3.
+- Reverted macOS permission handling to the original v1.9.0 Mac implementation that worked on the test Mac.
+- Removed the later ApplicationServices permission rewrite and real-capture permission probe.
+- Kept the original Screen Recording / Accessibility flow intact.
+- Fixed Retina/HiDPI Set-screen zoom by normalizing screenshots to macOS logical display coordinates.
+- Normalizes saved region screenshots to the same 1x coordinate space used by the mouse.
+- No changes to the Windows v1.9 automation backend, game modes, odds logic, wager flow, or timing behavior.
