@@ -20,11 +20,12 @@ from typing import Callable
 from PIL import Image, ImageChops, ImageGrab, ImageStat, ImageTk
 
 APP_NAME = "Box Flip Automator"
-APP_VERSION = "1.9.2 Mac"
+APP_VERSION = "1.9.3 Mac"
 CONFIG_PATH = Path.home() / ".box_flip_automator_v19_mac.json"
 LEGACY_CONFIG_PATH = Path.home() / ".box_flip_automator_v19.json"
 IS_WINDOWS = platform.system() == "Windows"
 IS_MAC = platform.system() == "Darwin"
+MAC_SCREEN_CAPTURE_CONFIRMED = False
 
 if IS_WINDOWS:
     from ctypes import wintypes
@@ -116,12 +117,22 @@ REGION_COLORS = {
 
 
 def mac_screen_capture_allowed() -> bool:
+    """Return the best-known Screen Recording state for this process.
+
+    macOS can report CGPreflightScreenCaptureAccess() as false for some
+    ad-hoc-signed/test builds even after the user enabled the app in System
+    Settings.  Once an actual capture succeeds, trust that real-world result
+    for the remainder of the process instead of trapping the user in a false
+    permission loop.
+    """
     if not IS_MAC or Quartz is None:
+        return True
+    if MAC_SCREEN_CAPTURE_CONFIRMED:
         return True
     try:
         return bool(Quartz.CGPreflightScreenCaptureAccess())
     except Exception:
-        return True
+        return False
 
 
 def request_mac_screen_capture() -> bool:
@@ -215,6 +226,33 @@ def capture_virtual_screen(bounds: ScreenBounds | None = None) -> tuple[Image.Im
         image = ImageGrab.grab()
         bounds = ScreenBounds(0, 0, image.width, image.height)
     return image.convert("RGB"), bounds
+
+
+def probe_mac_screen_capture() -> bool:
+    """Test the capability we actually need instead of trusting only TCC preflight.
+
+    This is intentionally conservative: a valid full-screen RGB image with
+    nonzero dimensions counts as usable.  On macOS builds where the preflight
+    API is stale but capture is genuinely allowed, this lets Set continue.
+    If capture is denied and Pillow raises, the probe returns False.
+    """
+    global MAC_SCREEN_CAPTURE_CONFIRMED
+    if not IS_MAC:
+        return True
+    try:
+        image, bounds = capture_virtual_screen()
+        usable = (
+            image.mode == "RGB"
+            and image.width >= 100
+            and image.height >= 100
+            and bounds.width >= 100
+            and bounds.height >= 100
+        )
+        if usable:
+            MAC_SCREEN_CAPTURE_CONFIRMED = True
+        return usable
+    except Exception:
+        return False
 
 
 def crop_global(image: Image.Image, bounds: ScreenBounds, rect: tuple[int, int, int, int]) -> Image.Image:
@@ -1260,7 +1298,7 @@ class BoxFlipApp(tk.Tk):
             font=("Segoe UI Semibold", 15)
         ).pack(anchor="w")
         tk.Label(
-            title_col, text="AUTOMATOR  ·  v1.9", bg=Theme.BG, fg=Theme.GOLD,
+            title_col, text="AUTOMATOR  ·  v1.9.3", bg=Theme.BG, fg=Theme.GOLD,
             font=("Segoe UI Semibold", 7)
         ).pack(anchor="w", pady=(0, 1))
         self.ready_pill = tk.Label(
@@ -1462,7 +1500,10 @@ class BoxFlipApp(tk.Tk):
         missing: list[str] = []
         if screen and not mac_screen_capture_allowed():
             request_mac_screen_capture()
-            if not mac_screen_capture_allowed():
+            # macOS 26 can leave CGPreflightScreenCaptureAccess() false for
+            # ad-hoc/private builds even when the user has enabled the app.
+            # Try the real operation before blocking Set.
+            if not mac_screen_capture_allowed() and not probe_mac_screen_capture():
                 missing.append("Screen & System Audio Recording")
         if accessibility and not mac_accessibility_allowed(False):
             mac_accessibility_allowed(prompt=True)
@@ -1474,7 +1515,8 @@ class BoxFlipApp(tk.Tk):
                 "Mac permission required",
                 "Enable Box Flip Automator under System Settings → Privacy & Security for: "
                 + ", ".join(missing)
-                + ". Then quit and reopen the app if macOS asks you to.",
+                + ". If it is already enabled, quit the app with Command-Q and reopen it from Applications. "
+                "This build also tests real capture so a stale macOS status check will not block Set.",
                 parent=self,
             )
             return False

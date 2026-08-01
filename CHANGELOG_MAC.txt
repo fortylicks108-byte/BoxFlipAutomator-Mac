@@ -16,3 +16,9 @@ Box Flip Automator v1.9.1 Mac Port
 - Added native-framework smoke tests in GitHub Actions so broken Mac dependencies fail during the build rather than on your friend's machine.
 - Retains Quartz mouse/keyboard automation, Screen Recording preflight, Apple Vision OCR, Retina-safe Pillow 12.3 capture, Esc/top-left failsafe, and DMG packaging.
 - Builds Apple Silicon and Intel DMGs on the current GitHub macOS 26 runner labels.
+
+v1.9.3 Mac
+- Fixes a macOS 26/Tahoe permission-loop edge case where CGPreflightScreenCaptureAccess can stay false for private/ad-hoc-signed builds even after Screen Recording is enabled.
+- Set now attempts the real screen-capture operation before blocking the user on the status API.
+- Once a real capture succeeds, that successful result is trusted for the rest of the app session.
+- Updates the visible Mac version label to v1.9.3.

@@ -65,3 +65,6 @@ The prior Mac source was very close to the Windows v1.9 code, but its Accessibil
 
 V1.9.2 RETINA / DISPLAY-SCALING FIX
 Some Macs could show the Set-region screenshot at Retina pixel size while Tk and Quartz mouse coordinates were using logical points. The result looked dramatically zoomed and made the screen impossible to select. v1.9.2 reads the main display's logical dimensions from AppKit (NSScreen) and normalizes both full-screen and region captures into the same 1x coordinate space before showing or analyzing them. This also keeps stored selection coordinates aligned with mouse clicks on Retina/scaled displays.
+
+v1.9.3 permission note
+If macOS shows Box Flip Automator enabled under Screen & System Audio Recording but the preflight API still reports false, v1.9.3 tests an actual capture before refusing Set. This is specifically to avoid false permission loops seen with private/ad-hoc-signed test builds on newer macOS versions.
