@@ -1,7 +1,7 @@
-BOX FLIP AUTOMATOR v1.9.1 — macOS TAHOE BUILD
+BOX FLIP AUTOMATOR v1.9.2 — macOS TAHOE BUILD
 
 WHAT THIS IS
-A macOS compatibility port of Box Flip Automator Windows v1.9. The game/odds/region logic remains matched to the Windows v1.9 codebase; v1.9.1 only hardens the Mac-specific layer. It keeps the existing:
+A macOS compatibility port of Box Flip Automator Windows v1.9. The game/odds/region logic remains matched to the Windows v1.9 codebase; v1.9.2 hardens the Mac-specific layer while keeping the Windows v1.9 game/odds/region logic intact. It keeps the existing:
 - Normal mode
 - Across the Line mode (Left -> Middle -> Right)
 - Random Lines mode (random column per row, top -> bottom)
@@ -61,3 +61,7 @@ The first Mac test should use a harmless page and a tiny number of rounds.
 
 V1.9.1 MAC RELIABILITY FIX
 The prior Mac source was very close to the Windows v1.9 code, but its Accessibility permission check was routed through Quartz. Accessibility trust APIs belong to ApplicationServices. v1.9.1 fixes that dependency/import and adds a GitHub Actions smoke test so a Mac build fails early if Screen Recording, Accessibility, or Vision OCR framework symbols are unavailable.
+
+
+V1.9.2 RETINA / DISPLAY-SCALING FIX
+Some Macs could show the Set-region screenshot at Retina pixel size while Tk and Quartz mouse coordinates were using logical points. The result looked dramatically zoomed and made the screen impossible to select. v1.9.2 reads the main display's logical dimensions from AppKit (NSScreen) and normalizes both full-screen and region captures into the same 1x coordinate space before showing or analyzing them. This also keeps stored selection coordinates aligned with mouse clicks on Retina/scaled displays.

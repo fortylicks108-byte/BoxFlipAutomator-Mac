@@ -20,7 +20,7 @@ from typing import Callable
 from PIL import Image, ImageChops, ImageGrab, ImageStat, ImageTk
 
 APP_NAME = "Box Flip Automator"
-APP_VERSION = "1.9.1 Mac"
+APP_VERSION = "1.9.2 Mac"
 CONFIG_PATH = Path.home() / ".box_flip_automator_v19_mac.json"
 LEGACY_CONFIG_PATH = Path.home() / ".box_flip_automator_v19.json"
 IS_WINDOWS = platform.system() == "Windows"
@@ -44,16 +44,19 @@ if IS_MAC:
         import Vision
         import ApplicationServices
         from Foundation import NSURL
+        from AppKit import NSScreen
     except Exception:
         Quartz = None
         Vision = None
         ApplicationServices = None
         NSURL = None
+        NSScreen = None
 else:
     Quartz = None
     Vision = None
     ApplicationServices = None
     NSURL = None
+    NSScreen = None
 
 
 @dataclass
@@ -148,6 +151,35 @@ def mac_accessibility_allowed(prompt: bool = False) -> bool:
         return False
 
 
+def _mac_logical_screen_size() -> tuple[int, int]:
+    """Return the main display size in macOS logical points, not Retina pixels.
+
+    Tk and Quartz mouse events use logical screen coordinates.  ImageGrab can
+    still return a 2x Retina bitmap on some Mac/Pillow/display combinations,
+    so the selection overlay must be normalized to this logical size.
+    """
+    if IS_MAC and NSScreen is not None:
+        try:
+            frame = NSScreen.mainScreen().frame()
+            return max(1, int(round(frame.size.width))), max(1, int(round(frame.size.height)))
+        except Exception:
+            pass
+    # Fallback only if AppKit is unavailable.  scale_down=True is correct on
+    # current Pillow, but we still normalize again in capture_virtual_screen.
+    image = ImageGrab.grab(scale_down=True) if IS_MAC else ImageGrab.grab()
+    return image.width, image.height
+
+
+def _normalize_mac_capture(image: Image.Image, width: int, height: int) -> Image.Image:
+    """Force a Mac screenshot into the same 1x coordinate space as Tk/Quartz."""
+    width, height = max(1, int(width)), max(1, int(height))
+    if image.size == (width, height):
+        return image
+    # Retina normally yields an exact 2x image.  LANCZOS also safely handles
+    # non-integer display scaling without changing the user's screen geometry.
+    return image.resize((width, height), Image.Resampling.LANCZOS)
+
+
 def get_virtual_screen_bounds() -> ScreenBounds:
     if IS_WINDOWS:
         user32 = ctypes.windll.user32
@@ -158,10 +190,8 @@ def get_virtual_screen_bounds() -> ScreenBounds:
             user32.GetSystemMetrics(79),
         )
     if IS_MAC:
-        # Pillow 12.3+ can normalize Retina captures to logical 1x coordinates.
-        # Keeping capture pixels equal to Tk/Quartz coordinates avoids offset clicks.
-        image = ImageGrab.grab(scale_down=True)
-        return ScreenBounds(0, 0, image.width, image.height)
+        width, height = _mac_logical_screen_size()
+        return ScreenBounds(0, 0, width, height)
     image = ImageGrab.grab()
     return ScreenBounds(0, 0, image.width, image.height)
 
@@ -174,8 +204,13 @@ def capture_virtual_screen(bounds: ScreenBounds | None = None) -> tuple[Image.Im
             all_screens=True,
         )
     elif IS_MAC:
+        logical_w, logical_h = _mac_logical_screen_size()
+        # Try Pillow's native downscale first, then enforce the AppKit logical
+        # dimensions.  This fixes the full-screen selector appearing zoomed on
+        # Retina / scaled Mac displays.
         image = ImageGrab.grab(scale_down=True)
-        bounds = ScreenBounds(0, 0, image.width, image.height)
+        image = _normalize_mac_capture(image, logical_w, logical_h)
+        bounds = ScreenBounds(0, 0, logical_w, logical_h)
     else:
         image = ImageGrab.grab()
         bounds = ScreenBounds(0, 0, image.width, image.height)
@@ -189,9 +224,14 @@ def crop_global(image: Image.Image, bounds: ScreenBounds, rect: tuple[int, int, 
 
 def capture_region(rect: tuple[int, int, int, int]) -> Image.Image:
     if IS_MAC:
-        # Direct bbox capture is substantially faster during automation and, with
-        # scale_down=True, stays in the same logical coordinate space as Tk/Quartz.
-        return ImageGrab.grab(bbox=rect, scale_down=True).convert("RGB")
+        # Region coordinates come from Tk/Quartz logical points.  Some Retina
+        # configurations still return a higher-density bitmap for bbox grabs,
+        # so force the result back to the rectangle's logical dimensions.
+        x1, y1, x2, y2 = rect
+        expected_w = max(1, x2 - x1)
+        expected_h = max(1, y2 - y1)
+        image = ImageGrab.grab(bbox=rect, scale_down=True)
+        return _normalize_mac_capture(image, expected_w, expected_h).convert("RGB")
     image, bounds = capture_virtual_screen()
     return crop_global(image, bounds, rect)
 

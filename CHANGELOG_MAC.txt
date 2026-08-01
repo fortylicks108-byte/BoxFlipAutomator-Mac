@@ -1,3 +1,12 @@
+Box Flip Automator v1.9.2 Mac Port
+
+- Fixes the Set/region selector appearing massively zoomed on Retina or scaled Mac displays.
+- Uses AppKit NSScreen logical point dimensions for the selection overlay.
+- Normalizes full-screen screenshots to Tk/Quartz 1x coordinates.
+- Normalizes bbox/region screenshots to the saved rectangle dimensions so detection and clicking remain aligned.
+- Adds NSScreen to the GitHub Actions native-framework smoke test.
+- Preserves the v1.9 Windows game logic, odds logic, MLB 5yr model, Across the Line, Random Lines, wager handling, and Done flow.
+
 Box Flip Automator v1.9.1 Mac Port
 
 - Preserves the Windows v1.9 automation, modes, odds weighting, MLB 5yr calibration, and UI logic.
